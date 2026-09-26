@@ -48,7 +48,8 @@ jobs:
           distribution: temurin
           java-version: 17
 
-      - uses: android-actions/setup-android@v3
+      # ubuntu-latest 已预装 Android SDK（ANDROID_HOME + sdkmanager）
+      # 不再使用 android-actions/setup-android@v3：其安装的 'tools' 包已被 Google 下架，必然失败
 
       - name: Install Android NDK
         run: |
