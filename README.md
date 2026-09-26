@@ -92,6 +92,26 @@ pnpm build           # vite build -> dist/
 `public/opencv.js` 为**单文件构建**（OpenCV 4.12.0，WASM 以 base64 内嵌其中），
 运行时完全本地、不依赖任何 CDN，契合「本地优先」。来源：`opencv-js-wasm` npm 包。
 
+## 发布到 GitHub（CI/CD）
+
+已内置与上游 ant-cave/ClearScan 同款逻辑的流水线：
+
+| 工作流 | 触发 | 行为 |
+| --- | --- | --- |
+| `ci.yml` | push main / PR | 安装依赖 → `pnpm build` 验证可构建 |
+| `release.yml` | push `v*` 标签 | 校验标签与 `tauri.conf.json` 版本一致 → 构建 **aarch64 APK** → 生成 SHA-256 校验和 → 自动发布 GitHub Release |
+
+一键推送（在能访问 GitHub 的机器上执行；token 从环境变量读取，不会写入任何文件）：
+
+```bash
+GITHUB_TOKEN=ghp_xxx bash scripts/push-to-github.sh
+# 可选: OWNER=ant-cave REPO=clearscan-tauri TAG=v0.1.0
+```
+
+脚本会：创建仓库（如不存在）→ push main → push `v0.1.0` 标签 → 触发 Actions 自动构建 APK（约 20-40 分钟），完成后到 Release 页下载 `app-aarch64-debug.apk` 与 `.sha256`。
+
+> 构建 APK 需要 Rust + JDK 17 + Android SDK/NDK（CI 环境自动安装），本地编译参见上文「环境要求」。
+
 ## 已知限制 / 与上游差异
 
 - 省略实时边缘引导（A 阶段），改为拍后处理流程
