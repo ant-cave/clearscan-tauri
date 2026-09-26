@@ -1,0 +1,30 @@
+[package]
+name = "clearscan-tauri"
+version = "0.1.0"
+description = "本地优先文档扫描应用（ClearScan 的 Tauri 复刻版）"
+authors = ["ant-cave fork"]
+edition = "2021"
+rust-version = "1.77.2"
+
+[lib]
+name = "clearscan_tauri_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-sql = "2"
+tauri-plugin-dialog = "2"
+tauri-plugin-fs = "2"
+tauri-plugin-shell = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[profile.release]
+panic = "abort"
+codegen-units = 1
+lto = true
+opt-level = "s"
+strip = true

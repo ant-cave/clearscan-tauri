@@ -1,0 +1,97 @@
+# Release 流水线 —— 复刻 ant-cave/ClearScan 原版逻辑：
+# 推送 v* 标签 → 校验标签与版本一致 → 构建 aarch64 APK → 生成 SHA-256 校验和 → 自动发布 GitHub Release
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  verify-tag:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify release tag matches app version
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          VERSION=$(jq -r .version src-tauri/tauri.conf.json)
+          echo "tag version: $TAG"
+          echo "app version: $VERSION"
+          if [ "$TAG" != "$VERSION" ]; then
+            echo "::error::Release tag v${TAG} does not match app version ${VERSION}"
+            exit 1
+          fi
+
+  build-android:
+    needs: verify-tag
+    runs-on: ubuntu-latest
+    env:
+      NDK_VERSION: 27.0.12077973
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Install Android NDK
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager --install "ndk;${NDK_VERSION}" >/dev/null
+          echo "NDK_HOME=${ANDROID_HOME}/ndk/${NDK_VERSION}" >> "$GITHUB_ENV"
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Install frontend dependencies
+        run: pnpm install
+
+      - name: Init Android project
+        run: |
+          if [ ! -d src-tauri/gen/android ]; then
+            pnpm tauri android init
+          fi
+
+      - name: Build aarch64 APK
+        run: pnpm tauri android build --apk --target aarch64 --debug
+
+      - name: Collect artifacts and checksums
+        run: |
+          mkdir -p dist-apk
+          find src-tauri/gen/android/app/build/outputs/apk -name '*.apk' -exec cp {} dist-apk/ \;
+          cd dist-apk
+          for f in *.apk; do sha256sum "$f" > "${f}.sha256"; done
+          ls -la
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: clearscan-apk-aarch64
+          path: dist-apk/*
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist-apk/*
+          generate_release_notes: true
